@@ -4,6 +4,10 @@ const mongoose = require("mongoose");
 const userRoute = require("./routers/user_route");
 
 const app = express();
+const path = require("path");
+
+app.use(express.json({ limit: "15mb" }));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.json());
 
 mongoose
