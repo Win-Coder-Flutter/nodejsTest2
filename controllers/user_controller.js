@@ -10,46 +10,66 @@ const { formatMsg } = require("../helpers/responseFormatter");
 const SECRET_KEY = process.env.SECRET_KEY;
 
 exports.memberRegister = async (req, res) => {
-    const { name, age, password, gender } = req.body;
+    const { name, email, age, password, gender } = req.body;
 
-    if (!name || !age || !password || !gender) {
-        return res.status(400).json(formatMsg("Name, age, gender, and password are required", "400"));
+    if (!name || !email || !age || !password || !gender) {
+        return res.status(400).json(formatMsg("Name, email, age, gender, and password are required", "400"));
     }
 
     try {
-        const existing = await User.findOne({ name });
-        if (existing) {
-            return res.status(400).json(formatMsg("User already exists", "400"));
+        const existingEmail = await User.findOne({ email });
+        if (existingEmail) {
+            return res.status(400).json(formatMsg("Email already registered", "400"));
+        }
+
+        const existingName = await User.findOne({ name });
+        if (existingName) {
+            return res.status(400).json(formatMsg("Username already taken", "400"));
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = await User.create({ name, age, gender, password: hashedPassword });
 
-        const token = jwt.sign({ id: newUser._id, name: newUser.name }, SECRET_KEY, { expiresIn: "1h" });
+        const newUser = await User.create({
+            name,
+            email,
+            age,
+            gender,
+            password: hashedPassword
+        });
 
+        const token = jwt.sign(
+            { id: newUser._id, name: newUser.name },
+            SECRET_KEY,
+            { expiresIn: "1h" }
+        );
+
+        // ✅ Fixed: include email in the response
         res.status(201).json(formatMsg("Member registered successfully", "201", {
             token,
             user: {
                 id: newUser._id,
                 name: newUser.name,
+                email: newUser.email, // ✅ this was missing before
                 age: newUser.age,
                 gender: newUser.gender
             }
         }));
     } catch (err) {
+        console.error("Registration error:", err);
         res.status(500).json(formatMsg("Error registering user", "500"));
     }
 };
 
-exports.login = async (req, res) => {
-    const { name, password } = req.body;
 
-    if (!name || !password) {
-        return res.status(400).json(formatMsg("Name and password are required", "400"));
+exports.login = async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json(formatMsg("Email and password are required", "400"));
     }
 
     try {
-        const user = await User.findOne({ name });
+        const user = await User.findOne({ email });
         if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(401).json(formatMsg("Invalid credentials", "401"));
         }
@@ -61,14 +81,17 @@ exports.login = async (req, res) => {
             user: {
                 id: user._id,
                 name: user.name,
+                email: user.email,
                 age: user.age,
-                gender: user.gender
+                gender: user.gender,
+                profile: user.profile
             }
         }));
     } catch (err) {
         res.status(500).json(formatMsg("Login failed", "500"));
     }
 };
+
 
 exports.getAllUser = async (req, res) => {
     try {
